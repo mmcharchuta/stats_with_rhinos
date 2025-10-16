@@ -1,0 +1,368 @@
+---
+title: "R2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Instalacja i ładowanie wymaganych pakietów
+required_packages <- c("openxlsx", "pdftools", "docxtractr", "effects")
+
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    install.packages(pkg, repos = "https://cloud.r-project.org/")
+    library(pkg, character.only = TRUE)
+  }
+}
+```
+
+# Część 1: Wczytywanie danych z różnych formatów
+
+```{r zyto_txt}
+# Wczytanie danych z pliku zyto.txt
+zyto <- read.table("./zyto.txt", header = TRUE)
+zyto
+
+# Średnie arytmetyczne dla każdej kolumny
+colMeans(zyto)
+
+# Mediany dla każdego wiersza
+apply(zyto, 1, median)
+```
+
+```{r zyto_xlsx}
+# Wczytanie danych z pliku zyto.xlsx
+library(openxlsx)
+zyto_xlsx <- read.xlsx("zyto.xlsx")
+zyto_xlsx
+
+# Średnie arytmetyczne dla każdej kolumny
+colMeans(zyto_xlsx)
+
+# Mediany dla każdego wiersza
+apply(zyto_xlsx, 1, median)
+```
+
+```{r konopie_pdf}
+# Wczytanie danych z pliku konopie.pdf
+library(pdftools)
+konopie_text <- pdf_text("konopie.pdf")
+cat("Raw PDF text:\n", konopie_text, "\n\n")
+
+# Parsowanie tekstu z zamianą przecinków na kropki
+konopie_text_fixed <- gsub(",", ".", konopie_text)
+
+# Wczytanie danych (dec="." ponieważ już zamieniliśmy przecinki)
+konopie_data <- read.table(text = konopie_text_fixed, header = TRUE)
+
+# Usunięcie pierwszej kolumny (numery wierszy lub nazwy)
+konopie_data <- konopie_data[, -1]
+konopie_data
+
+# Średnie arytmetyczne dla każdej kolumny
+colMeans(konopie_data)
+
+# Mediany dla każdego wiersza
+apply(konopie_data, 1, median)
+```
+
+```{r rzepak_docx}
+# Wczytanie danych z pliku RzepakOzimy.docx
+library(docxtractr)
+rzepak_doc <- read_docx("RzepakOzimy.docx")
+
+# Ekstrakcja tabeli
+rzepak_table <- docx_extract_tbl(rzepak_doc, 1)
+rzepak_table
+
+# Konwersja do ramki danych i usunięcie pierwszej kolumny (nazwy)
+rzepak_data <- rzepak_table[, -1]
+rzepak_data <- as.data.frame(lapply(rzepak_data, function(x) as.numeric(gsub(",", ".", x))))
+rzepak_data
+
+# Średnie arytmetyczne dla każdej kolumny
+colMeans(rzepak_data, na.rm = TRUE)
+
+# Mediany dla każdego wiersza
+apply(rzepak_data, 1, median, na.rm = TRUE)
+```
+
+# Część 2: Wizualizacje i ramki danych
+
+## Zadanie 1 - Plony pomidorów
+
+```{r zadanie1}
+# Dane o plonach pomidorów New Yorker
+pomidory <- c(1.52, 1.57, 1.30, 1.62, 1.55, 1.70, 2.05, 1.64, 1.95, 1.80, 
+              1.76, 1.40, 1.92, 2.20, 1.57, 1.59, 1.27, 1.79, 1.29, 1.84, 
+              1.77, 1.72, 1.53, 1.32, 1.69, 1.95, 1.75, 1.08, 1.70, 1.45)
+
+# Podstawowe statystyki
+summary(pomidory)
+
+# Wykres słupkowy
+png("bar plot.png")
+barplot(pomidory, main = "Plony pomidorów New Yorker", 
+        ylab = "Plon [kg]", xlab = "Numer krzaka")
+dev.off()
+
+barplot(pomidory, main = "Plony pomidorów New Yorker", 
+        ylab = "Plon [kg]", xlab = "Numer krzaka")
+
+# Wykres punktowy
+png("plot.png")
+plot(pomidory, main = "Plony pomidorów New Yorker", 
+     ylab = "Plon [kg]", xlab = "Numer krzaka", pch = 19, col = "blue")
+dev.off()
+
+plot(pomidory, main = "Plony pomidorów New Yorker", 
+     ylab = "Plon [kg]", xlab = "Numer krzaka", pch = 19, col = "blue")
+
+# Histogram
+png("histogram.png")
+hist(pomidory, main = "Histogram plonów pomidorów", 
+     xlab = "Plon [kg]", ylab = "Częstość", col = "lightblue")
+dev.off()
+
+hist(pomidory, main = "Histogram plonów pomidorów", 
+     xlab = "Plon [kg]", ylab = "Częstość", col = "lightblue")
+
+# Boxplot
+png("boxplot.png")
+boxplot(pomidory, main = "Boxplot plonów pomidorów", 
+        ylab = "Plon [kg]", col = "lightgreen")
+dev.off()
+
+boxplot(pomidory, main = "Boxplot plonów pomidorów", 
+        ylab = "Plon [kg]", col = "lightgreen")
+```
+
+## Zadanie 2 - Długości kłosów żyta
+
+```{r zadanie2}
+# a) Przedstawienie kolumn jako wektory
+A <- c(6.7, 7.3, 8.0, 8.0, 7.9, 9.2, 10.1, 9.2, 8.3, 8.4, 8.0, 7.9)
+B <- c(7.5, 7.7, 7.7, 8.2, 8.9, 8.9, 10.6, 10.2, 9.4, 9.4, 8.2, 7.8)
+C <- c(5.9, 6.9, 7.0, 7.0, 9.5, 9.6, 9.6, 10.3, 8.1, 8.5, 8.6, 8.8)
+
+# b) Ramka danych
+zyto <- data.frame(A, B, C)
+
+# c) Wyświetlenie zawartości ramki
+print(zyto)
+
+# d) Pierwsze trzy elementy pierwszej kolumny
+zyto[1:3, 1]
+
+# e) Dwa pierwsze elementy kolumny 'C'
+zyto[1:2, "C"]
+
+# f) Wszystkie elementy z kolumny 'B'
+zyto$B
+
+# g) Pierwsze dwa elementy z kolumny 'B'
+zyto[1:2, "B"]
+
+# h) Wykres boxplot
+png("gatunki.png")
+boxplot(zyto, main = "Długości kłosów żyta dla trzech gatunków",
+        ylab = "Długość kłosa [cm]", col = c("lightblue", "lightgreen", "lightcoral"))
+dev.off()
+
+boxplot(zyto, main = "Długości kłosów żyta dla trzech gatunków",
+        ylab = "Długość kłosa [cm]", col = c("lightblue", "lightgreen", "lightcoral"))
+```
+
+## Zadanie 3 - Wykresy funkcji z asymptotami
+
+```{r zadanie3}
+# a) Wykres funkcji
+png("wykres1.png")
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4)",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+dev.off()
+
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4)",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+
+# b) Dodanie osi
+png("wykres2.png")
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4)",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+dev.off()
+
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4) z osiami",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+
+# c) Dodanie asymptot pionowych
+png("wykres3.png")
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4)",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+abline(v = -2, col = "red", lty = 2)
+abline(v = 2, col = "red", lty = 2)
+dev.off()
+
+curve((x+1)/(x^2-4), from = -5, to = 5, 
+      main = "Wykres funkcji y = (x+1)/(x^2-4) z asymptotami",
+      ylab = "y", xlab = "x", ylim = c(-5, 5))
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+abline(v = -2, col = "red", lty = 2)
+abline(v = 2, col = "red", lty = 2)
+```
+
+## Zadanie 4 - Sinus i cosinus
+
+```{r zadanie4}
+png("sincos1.png")
+curve(sin(x), from = -3*pi, to = 3*pi, 
+      col = "blue", lwd = 2,
+      main = "Wykresy funkcji sin(x) i cos(x)",
+      ylab = "y", xlab = "x")
+curve(cos(x), from = -3*pi, to = 3*pi, 
+      col = "red", lwd = 2, add = TRUE)
+legend("topright", legend = c("sin(x)", "cos(x)"), 
+       col = c("blue", "red"), lwd = 2)
+dev.off()
+
+curve(sin(x), from = -3*pi, to = 3*pi, 
+      col = "blue", lwd = 2,
+      main = "Wykresy funkcji sin(x) i cos(x)",
+      ylab = "y", xlab = "x")
+curve(cos(x), from = -3*pi, to = 3*pi, 
+      col = "red", lwd = 2, add = TRUE)
+legend("topright", legend = c("sin(x)", "cos(x)"), 
+       col = c("blue", "red"), lwd = 2)
+```
+
+## Zadanie 5 - Wykresy funkcji przesuniętych
+
+```{r zadanie5}
+png("wykresy.png")
+curve(x^2, from = -5, to = 5, 
+      col = "red", lwd = 2, ylim = c(-5, 30),
+      main = "Wykresy funkcji przesuniętych",
+      ylab = "y", xlab = "x")
+curve((x-2)^2, from = -5, to = 5, col = "blue", lwd = 2, add = TRUE)
+curve((x-2)^2 + 3, from = -5, to = 5, col = "green", lwd = 2, add = TRUE)
+curve(x^2 + 3, from = -5, to = 5, col = "purple", lwd = 2, add = TRUE)
+curve((x+1)^2 - 2, from = -5, to = 5, col = "orange", lwd = 2, add = TRUE)
+
+# Dodanie linii x=0 i y=0
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+
+# Zaznaczenie punktów dla x = -0.2 i x = 0.8
+points(-0.2, (-0.2)^2, pch = 19, cex = 1.5)
+points(0.8, (0.8)^2, pch = 19, cex = 1.5)
+points(-0.2, (-0.2-2)^2, pch = 19, cex = 1.5)
+points(0.8, (0.8-2)^2, pch = 19, cex = 1.5)
+points(-0.2, (-0.2-2)^2 + 3, pch = 19, cex = 1.5)
+points(0.8, (0.8-2)^2 + 3, pch = 19, cex = 1.5)
+points(-0.2, (-0.2)^2 + 3, pch = 19, cex = 1.5)
+points(0.8, (0.8)^2 + 3, pch = 19, cex = 1.5)
+points(-0.2, (-0.2+1)^2 - 2, pch = 19, cex = 1.5)
+points(0.8, (0.8+1)^2 - 2, pch = 19, cex = 1.5)
+
+# Legenda
+legend("topleft", 
+       legend = c("y = x^2", "y = (x-2)^2", "y = (x-2)^2 + 3", 
+                  "y = x^2 + 3", "y = (x+1)^2 - 2"),
+       col = c("red", "blue", "green", "purple", "orange"), 
+       lwd = 2)
+dev.off()
+
+curve(x^2, from = -5, to = 5, 
+      col = "red", lwd = 2, ylim = c(-5, 30),
+      main = "Wykresy funkcji przesuniętych",
+      ylab = "y", xlab = "x")
+curve((x-2)^2, from = -5, to = 5, col = "blue", lwd = 2, add = TRUE)
+curve((x-2)^2 + 3, from = -5, to = 5, col = "green", lwd = 2, add = TRUE)
+curve(x^2 + 3, from = -5, to = 5, col = "purple", lwd = 2, add = TRUE)
+curve((x+1)^2 - 2, from = -5, to = 5, col = "orange", lwd = 2, add = TRUE)
+abline(h = 0, col = "black")
+abline(v = 0, col = "black")
+points(-0.2, (-0.2)^2, pch = 19, cex = 1.5)
+points(0.8, (0.8)^2, pch = 19, cex = 1.5)
+points(-0.2, (-0.2-2)^2, pch = 19, cex = 1.5)
+points(0.8, (0.8-2)^2, pch = 19, cex = 1.5)
+points(-0.2, (-0.2-2)^2 + 3, pch = 19, cex = 1.5)
+points(0.8, (0.8-2)^2 + 3, pch = 19, cex = 1.5)
+points(-0.2, (-0.2)^2 + 3, pch = 19, cex = 1.5)
+points(0.8, (0.8)^2 + 3, pch = 19, cex = 1.5)
+points(-0.2, (-0.2+1)^2 - 2, pch = 19, cex = 1.5)
+points(0.8, (0.8+1)^2 - 2, pch = 19, cex = 1.5)
+legend("topleft", 
+       legend = c("y = x^2", "y = (x-2)^2", "y = (x-2)^2 + 3", 
+                  "y = x^2 + 3", "y = (x+1)^2 - 2"),
+       col = c("red", "blue", "green", "purple", "orange"), 
+       lwd = 2)
+```
+
+## Zadanie 6 - Titanic
+
+```{r zadanie6}
+library(effects)
+data(TitanicSurvival)
+
+# Podsumowanie liczby przeżytych pasażerów we wszystkich klasach
+titanic_summary <- table(TitanicSurvival$passengerClass, TitanicSurvival$survived)
+print(titanic_summary)
+
+# Wykres słupkowy
+png("Titanic.png")
+barplot(t(titanic_summary), beside = TRUE, 
+        main = "Liczba przeżytych pasażerów Titanica według klasy",
+        xlab = "Klasa pasażera", ylab = "Liczba pasażerów",
+        col = c("red", "green"),
+        legend.text = c("Nie przeżył", "Przeżył"))
+dev.off()
+
+barplot(t(titanic_summary), beside = TRUE, 
+        main = "Liczba przeżytych pasażerów Titanica według klasy",
+        xlab = "Klasa pasażera", ylab = "Liczba pasażerów",
+        col = c("red", "green"),
+        legend.text = c("Nie przeżył", "Przeżył"))
+```
+
+## Zadanie 7 - Iris
+
+```{r zadanie7}
+data(iris)
+
+# Tworzenie ramki danych z wartościami Sepal.Length dla każdego gatunku
+dane <- data.frame(
+  setosa = iris$Sepal.Length[iris$Species == "setosa"],
+  versicolor = iris$Sepal.Length[iris$Species == "versicolor"],
+  virginica = iris$Sepal.Length[iris$Species == "virginica"]
+)
+
+print(head(dane))
+
+# Wykres boxplot
+png("iris.png")
+boxplot(dane, 
+        main = "Długość działki kielicha dla trzech gatunków irysów",
+        ylab = "Sepal.Length [cm]",
+        col = c("lightblue", "lightgreen", "lightcoral"))
+dev.off()
+
+boxplot(dane, 
+        main = "Długość działki kielicha dla trzech gatunków irysów",
+        ylab = "Sepal.Length [cm]",
+        col = c("lightblue", "lightgreen", "lightcoral"))
+```
+
+
