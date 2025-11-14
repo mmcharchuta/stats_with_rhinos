@@ -1,0 +1,24 @@
+---
+title: "Krzywe wzrostu"
+author: "Charchuta — Mikołaj"
+output: html_document
+---
+
+## Wprowadzenie
+## Analizy: wczytanie pakietów i pomocnicze ustawienia
+
+---
+
+## Zadanie 1 — 
+Opis: 
+
+```{r zad1}
+# Dane
+
+```
+
+Krótka interpretacja: 
+
+---
+## Zadanie 2 — 
+```{r zad2}	

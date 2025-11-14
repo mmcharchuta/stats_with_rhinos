@@ -1,0 +1,232 @@
+---
+title: "Zadania — testowanie statystyczne (Rozwiązania)"
+author: "Charchuta — Mikołaj"
+output: html_document
+---
+
+## Wprowadzenie
+
+Domyślne alfa = 0.05, dla prób powiązanych używamy testów parametrycznych sparowanych (t.test paired=TRUE) lub Wilcoxona; dla prób niezależnych — t.test (Welch) lub test ranga; dla więcej niż dwóch grup — ANOVA + Tukey lub Kruskal-Wallis.
+
+---
+
+## Zadanie 1 — ciężar 1000 nasion (Ród A vs Ród B)
+
+Opis: porównanie średnich dwóch niezależnych prób.
+
+```{r zad1}
+# Dane
+A <- c(3.8, 3.7, 2.9, 3.5, 2.6, 3.3)
+B <- c(3.7, 4.6, 5.4, 6.2, 4.2, 3.5, 5.3, 5.5)
+
+summary(A); summary(B)
+boxplot(A, B, names = c("Ród A","Ród B"), ylab = "Ciężar (g)")
+
+# Normalność
+shapiro.test(A)
+shapiro.test(B)
+
+# Test równości wariancji (jeśli normalne)
+var.test(A, B)
+
+# Test t (Welch)
+t.test(A, B, alternative = "two.sided", var.equal = FALSE)
+
+# Alternatywa nieparametryczna
+wilcox.test(A, B, alternative = "two.sided")
+```
+
+Krótka interpretacja: sprawdź p-value z testu t lub Wilcoxona. Jeśli p < 0.05 — różnica istotna.
+
+---
+
+## Zadanie 2 — metody Gerbera vs Burata (paired, n = 18)
+
+```{r zad2}
+G <- c(2.73,2.84,3.18,2.79,3.05,3.03,3.10,2.88,3.00,3.07,2.66,2.78,3.62,3.31,2.71,2.80,2.95,3.52)
+B <- c(2.88,2.93,3.38,2.99,3.30,3.19,3.34,3.08,3.20,3.23,2.81,2.94,3.59,3.41,2.88,2.99,3.16,3.66)
+
+length(G); length(B)
+d <- G - B
+summary(d)
+boxplot(d, main = "Różnice (G - B)")
+shapiro.test(d)
+
+# Paired t-test
+t.test(G, B, paired = TRUE, alternative = "two.sided")
+
+# Wilcoxon signed-rank (jeśli potrzeba)
+wilcox.test(G, B, paired = TRUE, alternative = "two.sided")
+```
+
+Interpretacja: jeśli p < 0.05 w teście sparowanym -> metody różnią się.
+
+---
+
+## Zadanie 3 — wysokość drzewek: ulica vs park (n=10)
+
+```{r zad3}
+ulica <- c(98,116,100,103,104,102,105,99,106,101)
+park  <- c(109,118,121,108,115,111,110,113,107,117)
+
+summary(ulica); summary(park)
+boxplot(ulica, park, names = c("ulica","park"), ylab = "Wysokość (cm)")
+shapiro.test(ulica)
+shapiro.test(park)
+var.test(ulica, park)
+t.test(ulica, park, alternative = "two.sided", var.equal = FALSE)
+wilcox.test(ulica, park, alternative = "two.sided")
+```
+
+---
+
+## Zadanie 4 — stare vs nowe paliwo (n=10), test sparowany (jednostronny)
+
+```{r zad4}
+stare <- c(1039,1168,1008,1035,1035,1025,1059,1012,1012,1039)
+nowe  <- c(1096,1161,1210,1088,1154,1111,1103,1094,1059,1177)
+
+d <- nowe - stare
+summary(d); boxplot(d, main = "Nowe - Stare")
+shapiro.test(d)
+
+# Paired t-test (alternative = "greater")
+t.test(nowe, stare, paired = TRUE, alternative = "greater")
+
+# Wilcoxon paired (jednostronny)
+wilcox.test(nowe, stare, paired = TRUE, alternative = "greater")
+```
+
+---
+
+## Zadanie 5 — studenci vs studentki (jednostronny)
+
+```{r zad5}
+studenci  <- c(9,12,19,21,24)
+studentki <- c(11,16,20,23)
+
+summary(studenci); summary(studentki)
+boxplot(studenci, studentki, names = c("studenci","studentki"))
+shapiro.test(studenci)
+shapiro.test(studentki)
+
+# Welch t-test (jednostronny: studenci > studentki)
+t.test(studenci, studentki, alternative = "greater", var.equal = FALSE)
+
+# Wilcoxon (jednostronny)
+wilcox.test(studenci, studentki, alternative = "greater")
+```
+
+Uwaga: małe liczebności — interpretować wyniki ostrożnie.
+
+---
+
+## Zadanie 6 — trzy gatunki żyta (ANOVA)
+
+```{r zad6}
+A <- c(6.7,7.3,8.0,8.0,7.9,9.2,10.1,9.2,8.3,8.4,8.0,7.9)
+B <- c(7.5,7.7,7.7,8.2,8.9,8.9,10.6,10.2,9.4,9.4,8.2,7.8)
+C <- c(5.9,6.9,7.0,7.0,9.5,9.6,9.6,10.3,8.1,8.5,8.6,8.8)
+
+values <- c(A,B,C)
+group <- factor(rep(c("A","B","C"), each = 12))
+boxplot(values ~ group, ylab = "Długość kłosa (cm)")
+
+# Normalność per grup
+tapply(values, group, shapiro.test)
+
+# Homogeniczność wariancji
+bartlett.test(values ~ group)
+
+# ANOVA
+mod <- aov(values ~ group)
+summary(mod)
+
+# Jeśli istotne, Tukey
+if(summary(mod)[[1]]["Pr(>F)"][1] < 0.05) {
+	print(TukeyHSD(mod))
+}
+```
+
+---
+
+## Zadanie 7 — odmiany D, A, J, N (ANOVA + porównania)
+
+```{r zad7}
+D <- c(24.7,26.6,23.7,18.8,23.4,20.6,26.0,27.9,25.6)
+A <- c(19.2,24.2,14.2,19.2,18.1,21.2,19.0,16.8,15.0,14.6)
+J <- c(22.7,18.5,23.6,21.9,20.0,23.5,17.0,18.0)
+N <- c(19.9,13.7,16.8,18.6,23.0,16.3,15.2,14.1,16.9,13.7)
+
+values <- c(D, A, J, N)
+group <- factor(c(rep("D", length(D)), rep("A", length(A)), rep("J", length(J)), rep("N", length(N))))
+boxplot(values ~ group, ylab = "Długość (cm)")
+
+tapply(values, group, shapiro.test)
+bartlett.test(values ~ group)
+mod <- aov(values ~ group)
+summary(mod)
+if(summary(mod)[[1]]["Pr(>F)"][1] < 0.05) print(TukeyHSD(mod))
+
+# Alternatywa: Kruskal-Wallis + post-hoc
+kruskal.test(values ~ group)
+pairwise.wilcox.test(values, group, p.adjust.method = "BH")
+```
+
+---
+
+## Zadanie 8 — średnice komórek dwóch uli (n=7)
+
+```{r zad8}
+ul1 <- c(5.36, 5.20, 5.28, 5.16, 5.30, 5.08, 5.23)
+ul2 <- c(5.15, 5.04, 5.30, 5.22, 5.19, 5.24, 5.12)
+
+boxplot(ul1, ul2, names = c("Ul1","Ul2"), ylab = "Średnica")
+shapiro.test(ul1); shapiro.test(ul2)
+var.test(ul1, ul2)
+t.test(ul1, ul2, alternative = "two.sided", var.equal = FALSE)
+wilcox.test(ul1, ul2, alternative = "two.sided")
+```
+
+---
+
+## Zadanie 9 — frakcja białka (kontrola vs preparat)
+
+```{r zad9}
+kontrola <- c(18.7, 7.4, 0.8, 34.5, 45.5, 10.1, 19.4, 40.2, 11.5, 19.2, 39.0, 1.0, 11.2, 16.1, 3.7, 7.9)
+prep     <- c(27.4,13.9,10.3,0.8,9.6,5.7,3.0,19.1,4.8,12.2,19.2,20.8,5.1,18.5,8.8,16.8,20.5,1.9,12.5,28.7,11.5,17.5,35.6,6.3,4.0)
+
+boxplot(kontrola, prep, names = c("Kontrola","Preparat"), ylab = "Frakcja (%)")
+shapiro.test(kontrola); shapiro.test(prep)
+var.test(kontrola, prep)
+t.test(kontrola, prep, alternative = "two.sided", var.equal = FALSE)
+wilcox.test(kontrola, prep, alternative = "two.sided")
+```
+
+---
+
+## Zadanie 10 — terminy cięcia łubinu (ANOVA)
+
+```{r zad10}
+I  <- c(290,286,266,270,301,270,264,277)
+II <- c(445,450,413,448,454,442,430,438)
+III<- c(520,470,516,530,475,508,485,480)
+IV <- c(370,405,412,403,384,410,415,377)
+
+values <- c(I, II, III, IV)
+group <- factor(rep(c("I","II","III","IV"), each = 8))
+boxplot(values ~ group, ylab = "Plon zielonki")
+tapply(values, group, shapiro.test)
+bartlett.test(values ~ group)
+mod <- aov(values ~ group)
+summary(mod)
+if(summary(mod)[[1]]["Pr(>F)"][1] < 0.05) print(TukeyHSD(mod))
+
+# Jeśli niespełnione, Kruskal-Wallis
+kruskal.test(values ~ group)
+pairwise.wilcox.test(values, group, p.adjust.method = "BH")
+```
+
+---
+
+

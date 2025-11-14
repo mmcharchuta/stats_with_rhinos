@@ -1,0 +1,254 @@
+---
+title: "R3 — dplyr, ggplot i dane"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 5, fig.align = 'center')
+
+# Pakiety potrzebne w R3
+required_packages <- c("tidyverse", "readr", "dplyr", "ggplot2", "pdftools", "tibble", "tidyselect")
+for (pkg in required_packages) {
+  if (!require(pkg, character.only = TRUE, quietly = TRUE)) {
+    install.packages(pkg, repos = "https://cloud.r-project.org/")
+    library(pkg, character.only = TRUE)
+  }
+}
+```
+
+## Zadanie: uczelnie/punkty — szkic
+
+```{r uczelnie_stub}
+przyklad <- tibble::tibble(
+  Uczelnia = c("UAM", "PP", "UPP", "UMP"),
+  Punkty = c(100, 122, 104, 109)
+)
+print(przyklad)
+ggplot(przyklad, aes(Uczelnia, Punkty)) + geom_col()
+ggplot2::ggsave("uczelnie_punkty_bar.png", width = 7, height = 5, dpi = 150)
+
+ggplot(przyklad, aes(Uczelnia, Punkty, fill = Uczelnia)) + 
+geom_point(size = 5)
+ggplot2::ggsave("uczelnie_punkty_scatter.png", width = 7, height = 5, dpi = 150)
+```
+
+## Zadania: iris (dplyr + ggplot)
+
+```{r iris_dplyr}
+# Dane iris jako tibble
+iris_tbl <- tibble::as_tibble(iris)
+# Szybki podgląd
+print(dplyr::glimpse(iris_tbl))
+
+# Przykładowe operacje dplyr (agregacje dla każdej grupy gatunku)
+iris_summary <- iris_tbl %>%
+  dplyr::group_by(Species) %>%
+  dplyr::summarise(
+    dplyr::across(dplyr::where(is.numeric), list(mean = mean, sd = sd), .names = "{.col}_{.fn}")
+  )
+print(iris_summary)
+```
+
+```{r iris_plots}
+# 1. Wygeneruj tylko kolumny Species i Sepal.Length z danych iris.
+
+iris_sepal_length <- dplyr::select(iris_tbl, Species, Sepal.Length)
+print(dplyr::glimpse(iris_sepal_length))
+
+# 2. Wygeneruj tylko wiersze, w których Petal.Width jest większe niż dwa, następnie policz, ile tak utworzone dane mają wierszy.
+
+iris_filtered <- dplyr::filter(iris_tbl, Petal.Width > 2)
+num_rows_filtered <- nrow(iris_filtered)
+print(paste("Liczba wierszy z Petal.Width > 2:", num_rows_filtered))
+
+# 3. Wygeneruj tylko te kwiaty, które mają Sepal.Width mniejsze niż 4 i nie są setosa. Ułóż je wg. Petal.Length. 
+
+iris_filtered_setosa <- dplyr::filter(iris_tbl, Sepal.Width < 4, Species != "setosa")
+iris_filtered_setosa <- dplyr::arrange(iris_filtered_setosa, Petal.Length)
+print(dplyr::glimpse(iris_filtered_setosa))
+
+# 4. Policz, w ilu gatunkach (nie osobnikach!) zdarza się, że jakikolwiek kwiatek ma Sepal.Length mniejsze niż 4.5
+
+iris_sepal_length_lt_4_5 <- dplyr::filter(iris_tbl, Sepal.Length < 4.5)
+num_species_lt_4_5 <- dplyr::n_distinct(iris_sepal_length_lt_4_5$Species)
+print(paste("Liczba gatunków z Sepal.Length < 4.5:", num_species_lt_4_5))
+
+# 5. Do danych dodaj kolumnę z pomnożonymi długością i szerokością płatka. Zapisz otrzymane dane jako nową zmienną.
+
+iris_with_area <- iris_tbl %>%
+  dplyr::mutate(Petal.Aprox.Area = Petal.Length * Petal.Width)
+
+# 6. Wybierz tylko kwiaty virginica i przedstaw na wykresie punktowym długość płatków oraz ich szerokość.
+
+iris_virginica <- dplyr::filter(iris_tbl, Species == "virginica")
+p_scatter <- ggplot2::ggplot(iris_virginica, ggplot2::aes(Petal.Length, Petal.Width)) +
+  ggplot2::geom_point(alpha = 0.8, color = "darkgreen") +
+  ggplot2::theme_minimal() +
+  ggplot2::labs(title = "Virginica: Petal Length vs Petal Width", x = "Petal Length", y = "Petal Width")
+
+ggsave("iris_virginica_scatter.png", p_scatter, width = 7, height = 5, dpi = 150)
+
+# 7. Policz, ile jest kwiatów poszczególnych gatunków.
+
+iris_counts <- iris_tbl %>%
+  dplyr::group_by(Species) %>%
+  dplyr::summarise(Count = dplyr::n())
+print(iris_counts)
+
+# 8. Wyznacz średnią szerokość i długość płatka dla każdego z gatunków. Dodaj kolumnę z iloczynem tych dwóch wartości. Wybierz tylko te wiersze, dla których ten iloczyn jest różny od 13 lub gatunek jest równy virginica i zapisz otrzymane dane pod nową zmienną
+
+iris_summary_area <- iris_tbl %>%
+  dplyr::group_by(Species) %>%
+  dplyr::summarise(
+    Mean.Petal.Length = mean(Petal.Length),
+    Mean.Petal.Width = mean(Petal.Width)
+  ) %>%
+  dplyr::mutate(Area.Product = Mean.Petal.Length * Mean.Petal.Width) %>%
+  dplyr::filter(Area.Product != 13 | Species == "virginica")
+print(iris_summary_area)
+```
+
+## Zadania: wina (wine178.csv + dplyr + ggplot)
+
+```{r wine_read}
+# current (already returns a tibble)
+wine_data <- readr::read_csv("wina.csv")
+
+# explicit cast (not necessary, but equivalent)
+wine_data <- tibble::as_tibble(readr::read_csv("wina.csv"))
+# Wina zadania
+# Dane: wina.csv
+# Dane zawierają informacje z prawie 130 tysięcy win takie jak ocena, cena wina, nazwisko i
+# nick recenzenta, treść recenzji oraz nazwa i pochodzenie wina.
+# Oceny przyznawane są winom w testach wg. następującej skali:
+# • 98–100 najwyższy poziom jakości
+# • 94–97 znakomite
+# • 90–93 doskonałe, bardzo zalecane
+# • 87–89 bardzo dobre, polecane
+# • 83–86 dobre, nadaje się do codziennego spożycia
+# • 80–82 akceptowalne
+# ZADANIA
+# 1. Ile jest zmiennych, ile jest obserwacji? Jakiego typu są dane?
+num_variables <- ncol(wine_data)
+num_observations <- nrow(wine_data)
+data_types <- sapply(wine_data, class)
+print(paste("Liczba zmiennych:", num_variables))
+print(paste("Liczba obserwacji:", num_observations))
+print("Typy danych:")
+print(data_types)
+# 2. Wyznaczyć wina, które otrzymały ocenę co najmniej 94 oraz kosztują mniej niż $25.
+high_quality_affordable_wines <- dplyr::filter(wine_data, points >= 94, price < 25)
+print(dplyr::glimpse(high_quality_affordable_wines))
+# 3. Wylosować 1% wszystkich obserwacji.
+set.seed(123)  # dla powtarzalności
+sampled_wines <- dplyr::sample_frac(wine_data, 0.01)
+# 4. Określić 3 wina, które zdobyły najwięcej punktów.
+top_3_wines <- wine_data %>%
+  dplyr::arrange(dplyr::desc(points)) %>%
+  dplyr::slice_head(n = 3)
+print(dplyr::glimpse(top_3_wines))
+
+# 5. Określić 100 najtańszych win.
+cheapest_100_wines <- wine_data %>%
+  dplyr::arrange(price) %>%
+  dplyr::slice_head(n = 100)
+# 6. Utworzyć listę win od największej do najmniejszej liczby punktów
+wines_by_points <- wine_data %>%
+  dplyr::arrange(dplyr::desc(points))
+# 7. Wybrać cztery zmienne (cechy) mówiące o pochodzeniu wina: country, oraz po kolei zmienne od province do region_2.
+origin_features <- dplyr::select(wine_data, country, province:region_2)
+print(dplyr::glimpse(origin_features))
+# 8. Zamienić nazwę zmiennej (cechy) points na score.
+wine_data <- dplyr::rename(wine_data, score = points)
+# 9. Dodać zmienną “price_pln”, która będzie ceną wina w złotych. Przyjmijmy kurs dolara do złotego na poziomie 3,94.
+wine_data <- dplyr::mutate(wine_data, price_pln = price * 3.94)
+# 10. Ile średnio kosztuje butelka ocenianego wina?
+average_price <- mean(wine_data$price, na.rm = TRUE)
+print(paste("Średnia cena butelki wina:", round(average_price, 2)))
+# Dla ceny butelki wina wyznaczyć następujące kwantyle: 0, 0.1, 0.25, 0.50, 0.75, 0.9, 1
+price_quantiles <- quantile(wine_data$price, probs = c(0, 0.1, 0.25, 0.5, 0.75, 0.9, 1), na.rm = TRUE)
+print("Kwantyle ceny butelki wina:")
+print(price_quantiles)
+# 11. Wyznaczyć medianę dla ceny butelki wina.
+median_price <- median(wine_data$price, na.rm = TRUE)
+print(paste("Mediana ceny butelki wina:", round(median_price, 2)))
+# 12. Które wina mają najlepszy stosunek ceny do jakości?
+wine_data <- dplyr::mutate(wine_data, price_to_score_ratio = price / score)
+best_value_wines <- wine_data %>%
+  dplyr::arrange(price_to_score_ratio) %>%
+  dplyr::slice_head(n = 10)
+print("Wina o najlepszym stosunku ceny do jakości:")
+print(dplyr::glimpse(best_value_wines))
+# 13. Z otrzymanych wyników wyznaczyć tylko te obserwacje, które uzyskały 90 lub więcej punktów.
+best_value_high_score_wines <- dplyr::filter(best_value_wines, score >= 90)
+print("Wina o najlepszym stosunku ceny do jakości z co najmniej 90 punktami:")
+print(dplyr::glimpse(best_value_high_score_wines))
+# 14. Który kraj produkuje najtańsze wina?
+cheapest_country <- wine_data %>%
+  dplyr::group_by(country) %>%
+  dplyr::summarize(average_price = mean(price, na.rm = TRUE)) %>%
+  dplyr::arrange(average_price) %>%
+  dplyr::slice_head(n = 1)
+print("Kraj produkujący najtańsze wina:")
+print(dplyr::glimpse(cheapest_country))
+# 15. Dodać średnią ocenę dla win oraz liczbę win z danego kraju.
+country_summary <- wine_data %>%
+  dplyr::group_by(country) %>%
+  dplyr::summarize(
+    average_score = mean(score, na.rm = TRUE),
+    number_of_wines = dplyr::n()
+  )
+country_summary <- dplyr::arrange(country_summary, dplyr::desc(average_score))
+```
+
+
+## Zadania: tuzin wykresów z iris
+
+```{r iris_plots_extended}
+# dotplot Sepal.Length by Sepal.Width
+ggplot2::ggplot(iris_tbl, aes(x = Sepal.Length, y = Sepal.Width)) +
+  ggplot2::geom_point(size = 1) +
+  ggplot2::labs(x = "Sepal Length", y = "Sepal Width")
+ggplot2::ggsave("./moje-iris-rysunki-ggplot/rys1.png", width = 7, height = 5, dpi = 150)
+
+# that + legend
+
+ggplot2::ggplot(iris_tbl, aes(x = Sepal.Length, y = Sepal.Width)) +
+  ggplot2::geom_point(size = 1, aes(color = Species)) +
+  ggplot2::labs(x = "Sepal Length", y = "Sepal Width") +
+  ggplot2::theme(legend.position = "right")
+ggplot2::ggsave("./moje-iris-rysunki-ggplot/rys2.png", width = 7, height = 5, dpi = 150)
+
+# that + theme bw with dark gridlines and outline 
+
+ggplot2::ggplot(iris_tbl, ggplot2::aes(x = Sepal.Length, y = Sepal.Width)) +
+    ggplot2::geom_point(size = 1, aes(color = Species)) +
+    ggplot2::labs(x = "Sepal Length", y = "Sepal Width") +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+        legend.position = "right",
+        panel.border = ggplot2::element_rect(color = "black", fill = NA),
+        panel.grid.major = ggplot2::element_line(color = "black"),
+        panel.grid.minor = ggplot2::element_line(color = "black")  
+    )
+ggplot2::ggsave("./moje-iris-rysunki-ggplot/rys4.png", width = 7, height = 5, dpi = 150)
+
+# that + theme bw with grey gridlines and without outline or breaks
+
+ggplot2::ggplot(iris_tbl, ggplot2::aes(x = Sepal.Length, y = Sepal.Width)) +
+    ggplot2::geom_point(size = 1, aes(color = Species)) +
+    scale_x_continuous(n.breaks = 0) +
+    scale_y_continuous(n.breaks = 0) +
+    ggplot2::labs(x = "Sepal Length", y = "Sepal Width") +
+    ggplot2::theme_bw() +
+    ggplot2::theme(
+        legend.position = "right",
+        panel.border = ggplot2::element_blank(),
+        panel.grid.major = ggplot2::element_line(color = "gray"),
+        panel.grid.minor = ggplot2::element_line(color = "gray")
+    )
+ggplot2::ggsave("./moje-iris-rysunki-ggplot/rys5.png", width = 7, height = 5, dpi = 150)
+
+
+```
