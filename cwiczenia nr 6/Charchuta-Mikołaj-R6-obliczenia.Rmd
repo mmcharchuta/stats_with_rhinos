@@ -1,24 +1,131 @@
 ---
-title: "Krzywe wzrostu"
+title: "Krzywe wzrostu — (wersja rozbudowana)"
 author: "Charchuta — Mikołaj"
 output: html_document
 ---
 
 ## Wprowadzenie
-## Analizy: wczytanie pakietów i pomocnicze ustawienia
 
----
+Wersja rozbudowana skryptu do zadań 1–4 dotyczących dopasowywania krzywych wzrostu.
 
-## Zadanie 1 — 
-Opis: 
+```{r setup, include=TRUE}
+# Pakiety
+required <- c("drc", "readxl", "ggplot2", "broom")
+to_install <- required[!required %in% installed.packages()[, "Package"]]
+if(length(to_install)) install.packages(to_install)
+lapply(required, require, character.only = TRUE)
 
-```{r zad1}
-# Dane
+# Helper
+safe_drm <- function(formula, data, fct){
+  tryCatch(drm(formula, data = data, fct = fct), error = function(e){ message("drm failed: ", e$message); NULL })
+}
 
+# but we'll mostly use try() directly
 ```
 
-Krótka interpretacja: 
+## Zadanie 1 — LL.* i W1.* (arkusz `trawa`)
+
+```{r zad1}
+# Wczytaj dane
+fname <- "Krzywe wzrostu dane.xlsx"
+if(!file.exists(fname)) stop("Umieść 'Krzywe wzrostu dane.xlsx' w katalogu roboczym.")
+trawa <- readxl::read_excel(fname, sheet = "trawa")
+print(head(trawa))
+
+# Zakładam, że pierwsze dwie kolumny to x i y
+names(trawa)[1:2] <- c("x","y")
+
+# Lista funkcji do dopasowania
+fcts <- list(LL.2 = LL.2(), LL.3 = LL.3(), LL.4 = LL.4(), W1.2 = W1.2(), W1.3 = W1.3(), W1.4 = W1.4())
+
+fits <- list()
+for(n in names(fcts)){
+  cat("Dopasowuję:", n, "\n")
+  fit <- try(drm(y ~ x, data = trawa, fct = fcts[[n]]), silent = TRUE)
+  if(inherits(fit, "try-error")){
+    cat("  Nie udało się dopasować", n, "\n")
+  } else {
+    fits[[n]] <- fit
+    cat("  OK\n")
+  }
+}
+
+# Porównanie AIC
+aic_tab <- data.frame(model = names(fits), AIC = sapply(fits, AIC))
+print(aic_tab[order(aic_tab$AIC), ])
+
+# Wykresy
+par(mfrow = c(2,3))
+for(n in names(fits)) plot(fits[[n]], main = n)
+par(mfrow = c(1,1))
+```
+
+## Zadanie 2 — dataset1.txt i dataset2.txt: EXD.3, Gompertz, logistic, LL.5, W2.4
+
+```{r zad2}
+files <- c("dataset1.txt","dataset2.txt")
+models_fct <- list(EXD.3 = EXD.3(), Gompertz = Gompertz(), Logistic = LL.4(), LL.5 = LL.5(), W2.4 = W2.4())
+
+for(f in files){
+  if(!file.exists(f)){ cat("Brak pliku:", f, " — pomiń\n"); next }
+  dat <- read.table(f, header = TRUE)
+  names(dat)[1:2] <- c("x","y")
+  cat("Plik:", f, "\n")
+  fits <- list()
+  for(n in names(models_fct)){
+    cat("  Model:", n, "\n")
+    fit <- try(drm(y ~ x, data = dat, fct = models_fct[[n]]), silent = TRUE)
+    if(!inherits(fit, "try-error")) fits[[n]] <- fit
+  }
+  if(length(fits)==0) next
+  aic <- sapply(fits, AIC)
+  print(data.frame(model = names(aic), AIC = unname(aic))[order(aic), ])
+  best <- names(which.min(aic))
+  cat("  Najlepszy: ", best, "\n")
+  plot(fits[[best]], main = paste(f, best))
+}
+```
+
+## Zadanie 3 — Michaelis-Menten (drc MM.2 i nls)
+
+```{r zad3}
+mm <- readxl::read_excel(fname, sheet = "M-M-Model")
+names(mm)[1:2] <- c("x","y")
+# (a) drc
+fit_drc <- try(drm(y ~ x, data = mm, fct = MM.2()), silent = TRUE)
+if(!inherits(fit_drc, "try-error")) print(summary(fit_drc))
+
+# (b) nls
+start <- list(Vmax = max(mm$y, na.rm=TRUE), Km = median(mm$x))
+fit_nls <- try(nls(y ~ Vmax * x/(Km + x), data = mm, start = start), silent = TRUE)
+if(!inherits(fit_nls, "try-error")) print(summary(fit_nls))
+
+# Porównanie na wykresie
+plot(mm$x, mm$y, pch=19)
+xx <- seq(min(mm$x), max(mm$x), length = 200)
+if(!inherits(fit_nls, "try-error")) lines(xx, predict(fit_nls, newdata = list(x = xx)), col = "blue")
+if(!inherits(fit_drc, "try-error")) lines(xx, predict(fit_drc, newdata = data.frame(x = xx)), col = "red")
+legend("bottomright", legend = c("nls","drc"), col = c("blue","red"), lwd = 2)
+```
+
+## Zadanie 4 — Woods (nls): y = a * x^b * exp(-c*x)
+
+```{r zad4}
+woods <- readxl::read_excel(fname, sheet = "Woods")
+names(woods)[1:2] <- c("x","y")
+plot(woods$x, woods$y, pch=19)
+startw <- list(a = max(woods$y, na.rm=TRUE), b = 0.5, c = 0.1)
+fit_woods <- try(nls(y ~ a * x^b * exp(-c * x), data = woods, start = startw), silent = TRUE)
+if(!inherits(fit_woods, "try-error")){
+  print(summary(fit_woods))
+  xx <- seq(min(woods$x), max(woods$x), length = 200)
+  lines(xx, predict(fit_woods, newdata = list(x = xx)), col = "darkgreen", lwd = 2)
+} else cat("Fitting Woods failed: ", fit_woods)
+```
 
 ---
-## Zadanie 2 — 
-```{r zad2}	
+
+### Notatki
+
+- Jeśli chcesz, mogę wkleić te bloki do oryginalnego pliku `Charchuta-Mikołaj-R6-obliczenia.Rmd` nadpisując go.
+- Uruchom w RStudio — plik nowy: `Charchuta-Mikołaj-R6-obliczenia-new.Rmd` zawiera pełne rozwiązania.

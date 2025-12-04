@@ -1,0 +1,241 @@
+---
+title: "Układy doświadczalne"
+author: "Charchuta — Mikołaj"
+output: html_document
+---
+
+## Wprowadzenie
+
+## Analizy: wczytanie pakietów i pomocnicze ustawienia
+
+```{r setup, include=TRUE}
+# Packages
+required <- c("tidyverse", "car", "emmeans", "multcomp")
+to_install <- required[!required %in% installed.packages()[,"Package"]]
+if(length(to_install)) install.packages(to_install)
+lapply(required, require, character.only = TRUE)
+
+options(digits = 4)
+```
+
+---
+
+## Zadanie 1 — cztery terminy cięcia (8 powtórzeń)
+
+Opis: sprawdzamy normalność rozkładów dla terminów, jednorodność wariancji, wykonujemy ANOVA jednoczynnikową, testy post-hoc (Tukey), sortujemy terminy według średniego plonowania i grupujemy podobne.
+
+```{r zad1, echo=TRUE}
+# dane wierszami = powtórzenia 1..8, kolumnami = I..IV
+vals <- matrix(c(
+  290,445,520,370,
+  286,450,470,405,
+  266,413,516,412,
+  270,448,530,403,
+  301,454,475,384,
+  270,442,508,410,
+  264,430,485,415,
+  277,438,480,377
+), nrow = 8, byrow = TRUE)
+df1 <- as_tibble(vals)
+names(df1) <- c("I","II","III","IV")
+df1_long <- df1 %>% mutate(rep = 1:n()) %>% pivot_longer(cols = I:IV, names_to = "time", values_to = "yield")
+
+# Summary
+df1_long %>% group_by(time) %>% summarise(n = n(), mean = mean(yield), sd = sd(yield))
+
+# Normality: Shapiro-Wilk per group
+df1_long %>% group_by(time) %>% summarise(shapiro_p = shapiro.test(yield)$p.value)
+
+# Q-Q plots
+ggplot(df1_long, aes(sample = yield)) + stat_qq() + stat_qq_line() + facet_wrap(~time) + ggtitle("Q-Q plots by time")
+
+# Homogeneity: Bartlett (for normal) and Levene (robust)
+bartlett <- bartlett.test(yield ~ time, data = df1_long)
+levene <- leveneTest(yield ~ time, data = df1_long)
+list(bartlett = bartlett, levene = levene)
+
+# One-way ANOVA
+mod1 <- aov(yield ~ time, data = df1_long)
+anova_res <- summary(mod1)
+anova_res
+
+# Diagnostics
+par(mfrow = c(1,2)); plot(mod1); par(mfrow = c(1,1))
+
+# Post-hoc Tukey and group letters
+tuk <- TukeyHSD(mod1)
+tuk
+em <- emmeans(mod1, ~ time)
+groups <- cld(em, Letters = letters)
+groups
+
+# Sort means descending and attach groups
+means <- df1_long %>% group_by(time) %>% summarise(mean = mean(yield)) %>% arrange(desc(mean))
+means_joined <- left_join(means, as_tibble(groups), by = c("time" = "time"))
+means_joined
+
+# If assumptions fail, Kruskal-Wallis
+kruskal <- kruskal.test(yield ~ time, data = df1_long)
+kruskal
+pairwise.wilcox.test(df1_long$yield, df1_long$time, p.adjust.method = "BH")
+```
+
+---
+
+## Zadanie 2 — wpływ dawek azotu i odmian jęczmienia (5 dawek × 3 odmiany)
+
+Opis: dane podane w tabeli; brak replikacji w komórkach (1 obserwacja na kombinację), więc nie można ocenić interakcji (brak stopni swobody). Przeprowadzimy analizę efektów głównych (model addytywny) i jednoczynnikowe porównania.
+
+```{r zad2, echo=TRUE}
+# Dane: kolumny K, M, P; wiersze dawki I..V
+K <- c(6.8,4.6,5.6,6.1,4.9)
+M <- c(5.4,6.8,6.1,6.0,5.7)
+P <- c(5.3,5.3,6.5,6.3,7.2)
+df2 <- tibble(dose = rep(c("I","II","III","IV","V"), times = 3),
+              variety = rep(c("K","M","P"), each = 5),
+              yield = c(K, M, P))
+df2 %>% group_by(variety) %>% summarise(mean = mean(yield), sd = sd(yield))
+df2 %>% group_by(dose) %>% summarise(mean = mean(yield), sd = sd(yield))
+
+# Two-way additive model (no interaction estimable due to single obs per cell)
+mod2 <- aov(yield ~ variety + dose, data = df2)
+summary(mod2)
+
+# One-way analyses (for clarity)
+summary(aov(yield ~ variety, data = df2))
+summary(aov(yield ~ dose, data = df2))
+
+# Pairwise comparisons if needed
+TukeyHSD(aov(yield ~ variety, data = df2))
+TukeyHSD(aov(yield ~ dose, data = df2))
+
+# Note: interpret results with caution because interaction cannot be estimated (no replication).
+```
+
+---
+
+## Zadanie 3 — wpływ dawek nawożenia (0,40,80,120) i sposobów siewu (C, M, P) w 4 powtórzeniach
+
+Opis: zbudujemy ramkę z danymi i wykonamy dwuczynnikową ANOVA z interakcją; sprawdzimy które czynniki i czy interakcja są istotne.
+
+```{r zad3, echo=TRUE}
+# Dane: 6 wierszy, 8 kolumn (dawki w parach). Wiersze: C, C, M, M, P, P (po 4 powtórzenia każda)
+mat <- matrix(c(
+  33.2,36.2,42.2,41.4,50.2,53.0,46.2,52.4,
+  44.2,51.0,50.6,45.2,52.6,45.0,49.0,43.6,
+  18.6,13.0,18.0,20.0,24.2,21.6,34.2,17.2,
+  14.6,18.8,14.2,19.1,16.4,19.0,15.5,22.2,
+  20.4,14.4,21.9,24.0,18.2,21.0,16.4,15.0,
+  11.0,22.6,16.2,25.6,27.3,27.6,21.6,27.8
+), nrow = 6, byrow = TRUE)
+
+# Rows correspond to methods: C,C,M,M,P,P (so each method appears twice to create 4 reps per dose)
+methods <- c("C","C","M","M","P","P")
+
+# Build data frame: for each of 6 rows and 8 columns
+dose_vec <- rep(c(0,0,40,40,80,80,120,120), times = 6)
+method_vec <- rep(methods, each = 8)
+yield_vec <- as.vector(t(mat))
+
+df3 <- tibble(method = method_vec, dose = as.factor(dose_vec), yield = yield_vec)
+
+# There are 48 obs (6 rows * 8 cols) = 3 methods * 4 doses * 4 reps = 48
+df3 %>% group_by(method, dose) %>% summarise(n = n(), mean = mean(yield))
+
+# Fit two-way ANOVA with interaction
+mod3 <- aov(yield ~ method * dose, data = df3)
+summary(mod3)
+
+# Diagnostics
+plot(mod3)
+leveneTest(yield ~ interaction(method, dose), data = df3)
+
+# If interaction significant, look at simple effects and interaction plots
+interaction.plot(df3$dose, df3$method, df3$yield, col = 1:3, lwd = 2, ylab = "Yield", xlab = "Dose")
+emm3 <- emmeans(mod3, ~ method * dose)
+emm3
+
+# Pairwise comparisons by method or dose if needed
+pairs(emmeans(mod3, ~ dose | method), adjust = "tukey")
+```
+
+---
+
+## Zadanie 4 — bloki losowe (5 bloków × 4 typy uprawy)
+
+Opis: analiza wg bloków losowych: aov(yield ~ treatment + block).
+
+```{r zad4, echo=TRUE}
+mat4 <- matrix(c(
+  6.25,6.15,5.70,6.60,
+  6.00,6.70,5.65,5.90,
+  6.90,6.60,6.10,6.25,
+  6.40,6.70,5.85,5.90,
+  6.20,5.90,5.85,6.10
+), nrow = 5, byrow = TRUE)
+df4 <- as_tibble(mat4) %>% mutate(block = factor(1:5)) %>% pivot_longer(cols = V1:V4, names_to = "treatment", values_to = "yield")
+df4$treatment <- factor(df4$treatment)
+
+df4 %>% group_by(treatment) %>% summarise(mean = mean(yield), sd = sd(yield))
+
+mod4 <- aov(yield ~ treatment + block, data = df4)
+summary(mod4)
+
+# Diagnostics
+plot(mod4)
+
+# Post-hoc for treatments
+TukeyHSD(mod4, "treatment")
+emmeans(mod4, "treatment") %>% cld(Letters = letters)
+```
+
+---
+
+## Zadanie 5 — wpływ herbicydów (H1..H5), odmian (O1..O5) i terminów (T1..T5)
+
+Opis: układ przypomina kwadrat łaciński; model: yield ~ herb + variety + time.
+
+```{r zad5, echo=TRUE}
+# Construct numeric yield matrix as given in the prompt
+yields_mat <- matrix(c(
+  20.32,19.05,21.32,20.59,21.95,
+  21.05,18.59,20.84,20.86,20.89,
+  19.79,19.31,21.03,19.04,22.09,
+  19.03,22.00,18.95,18.85,18.90,
+  20.91,20.63,19.18,19.05,19.52
+), nrow = 5, byrow = TRUE)
+rownames(yields_mat) <- paste0("O",1:5)
+colnames(yields_mat) <- paste0("T",1:5)
+
+# Herbicide layout (matching numeric matrix order from prompt)
+herb_mat <- matrix(c(
+  "H1","H2","H3","H4","H5",
+  "H2","H3","H4","H5","H1",
+  "H3","H4","H5","H1","H2",
+  "H4","H5","H1","H2","H3",
+  "H5","H1","H2","H3","H4"
+), nrow = 5, byrow = TRUE)
+
+df5 <- expand.grid(variety = rownames(yields_mat), time = colnames(yields_mat))
+df5$yield <- as.vector(t(yields_mat))
+df5$herb <- as.vector(t(herb_mat))
+df5 <- df5 %>% mutate(variety = factor(variety), time = factor(time), herb = factor(herb))
+df5
+
+# Latin square style model
+mod5 <- aov(yield ~ herb + variety + time, data = df5)
+summary(mod5)
+
+# Diagnostics
+plot(mod5)
+
+# If herb effect significant, pairwise comparisons
+emmeans(mod5, "herb") %>% pairs(adjust = "tukey")
+emmeans(mod5, "herb") %>% cld(Letters = letters)
+```
+
+---
+
+## Zakończenie
+
+W razie chęci mogę: (A) uruchomić wszystkie bloki i wkleić wyniki oraz wykresy tutaj, (B) dodać bardziej szczegółowe interpretacje i sformatowane wnioski do tego pliku Rmd, lub (C) zapisać zmiany i skommitować je do repozytorium. Napisz, co preferujesz.

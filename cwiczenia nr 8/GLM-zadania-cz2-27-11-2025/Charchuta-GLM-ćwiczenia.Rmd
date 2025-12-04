@@ -1,0 +1,174 @@
+---
+title: "Formaty GLM — ćwiczenia"
+author: "Charchuta Mikołaj"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Pakiety
+```{r libraries}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+```
+
+## Zadanie 1
+
+```{r zad1a}
+png(filename = file.path(getwd(), "rozkad_normalny_6_3x3_94.png"), width = 6.3, height = 3.94, units = "in", res = 300)
+mu <- 0
+sigmas <- c(1/2, 1, 2)
+x_range <- seq(-4, 4, by = 0.01)
+colors <- c("green", "red", "blue")
+plot(x_range, dnorm(x_range, mean = mu, sd = sigmas[1]), type = 'l', col = colors[1], lwd = 2, xlab = "x", ylab = "prawdopodobienstwo", main = "rozkad normalny", ylim = c(0, 0.8), xaxt = 'n')
+axis(1, at = seq(-4, 4, by = 2))
+for (i in 2:length(sigmas)) {
+  lines(x_range, dnorm(x_range, mean = mu, sd = sigmas[i]), col = colors[i], lwd = 2)
+}
+
+legend("topright", legend = paste("sigma=", sigmas), col = colors, lwd = 2)
+dev.off()
+```
+
+```{r zad1b}
+# (b) funkcje logistyczne na przedziale -10:10
+x <- seq(-10, 10, length.out = 1001)
+log1 <- exp(x)/(1+exp(x))
+log2 <- exp(-x)/(1+exp(-x))
+df <- data.frame(x = x, log1 = log1, log2 = log2)
+ggplot(df, aes(x = x)) +
+	geom_line(aes(y = log1, colour = 'e^x/(1+e^x)')) +
+	geom_line(aes(y = log2, colour = 'e^{-x}/(1+e^{-x})')) +
+	labs(y = 'y', colour = 'funkcja') +
+	ggtitle('Krzywe logistyczne')
+```
+
+## Zadanie 2
+
+```{r zad2}
+# Analiza wpływu wieku i palenia na nadciśnienie
+# Plik: "nadciśnienie.xlsx" (umieść w katalogu roboczym lub zmień ścieżkę)
+library(readxl)
+file_ns <- "nadcisnienie.xlsx"
+if (file.exists(file_ns)) {
+	ns <- read_excel(file_ns)
+	ns <- ns %>% mutate(palenie = as.factor(palenie), nadcisnienie = as.factor(nadcisnienie))
+	m_glm <- glm(nadcisnienie ~ wiek + palenie, data = ns, family = binomial)
+	print(summary(m_glm))
+	print(exp(coef(m_glm)))
+} else {
+	message('Plik nadciśnienie.xlsx nie znaleziony — podaj ścieżkę lub umieść plik w katalogu roboczym.')
+}
+```
+
+## Zadanie 3 (mtcars)
+
+```{r zad3}
+data(mtcars)
+# A: wpływ disp i hp na mpg
+m_lm <- lm(mpg ~ disp + hp, data = mtcars)
+m_glm_gauss <- glm(mpg ~ disp + hp, data = mtcars, family = gaussian)
+cat('LM summary:\n')
+print(summary(m_lm))
+cat('\nGLM (gaussian) summary:\n')
+print(summary(m_glm_gauss))
+
+# B: wpływ disp i hp na am (0/1) — logistyczny i Poisson
+mtcars$am <- as.factor(mtcars$am)
+m_logit <- glm(am ~ disp + hp, data = mtcars, family = binomial)
+m_pois <- glm(as.numeric(as.character(am)) ~ disp + hp, data = mtcars, family = poisson)
+cat('\nLogit summary:\n')
+print(summary(m_logit))
+cat('\nPoisson (na surowych 0/1) summary:\n')
+print(summary(m_pois))
+
+# Porównanie AIC
+cat('\nAICs: lm, glm-gauss, logit, poisson\n')
+print(c(AIC(m_lm), AIC(m_glm_gauss), AIC(m_logit), AIC(m_pois)))
+```
+
+## Zadanie 4 (days-students)
+
+```{r zad4-read}
+dfds <- read.table('days-students.txt', header = TRUE, sep = '\t')
+head(dfds)
+```
+
+```{r zad4-plot}
+ggplot(dfds, aes(x = Days, y = Students)) +
+	geom_point() + geom_smooth(method = 'lm', se = FALSE) +
+	ggtitle('Liczba zakażonych studentów w zależności od dni')
+```
+
+```{r zad4-models}
+# liniowy na liczbach
+lm_m <- lm(Students ~ Days, data = dfds)
+# logistyczny: zamieniamy na zdarzenie (czy >0)
+dfds$any <- as.integer(dfds$Students > 0)
+log_m <- glm(any ~ Days, data = dfds, family = binomial)
+# Poisson na liczbach
+pois_m <- glm(Students ~ Days, data = dfds, family = poisson)
+cat('LM summary:\n'); print(summary(lm_m))
+cat('\nLogit summary (presence):\n'); print(summary(log_m))
+cat('\nPoisson summary:\n'); print(summary(pois_m))
+
+# Wybór najlepszego: porównanie AIC
+cat('\nAICs (lm, logit, poisson):\n')
+print(c(AIC(lm_m), AIC(log_m), AIC(pois_m)))
+```
+
+## Zadanie 5 (PlantGrowth)
+
+```{r zad5}
+data(PlantGrowth)
+ggplot(PlantGrowth, aes(x = group, y = weight, colour = group)) + geom_boxplot() + geom_jitter(width = 0.1)
+
+# Tworzymy binarną zmienną: waga powyżej mediany
+PlantGrowth$high <- as.integer(PlantGrowth$weight > median(PlantGrowth$weight))
+m_bin <- glm(high ~ group, data = PlantGrowth, family = binomial)
+print(summary(m_bin))
+```
+
+## Zadanie 6 (dane ck / ha / ok)
+
+```{r zad6}
+ck <- c(20,60,100,140,180,220,260,300,340,380,420,460)
+ha <- c(2,13,30,30,21,19,18,13,19,15,7,8)
+ok <- c(88,26,8,5,0,1,1,1,1,0,0,0)
+df6 <- data.frame(ck = ck, ha = ha, ok = ok)
+df6$prob <- df6$ha / (df6$ha + df6$ok)
+
+# (A) wykres punktowy
+ggplot(df6, aes(x = ck, y = prob)) + geom_point() + ylim(0,1) +
+	ggtitle('Prawdopodobieństwo zawału vs CK')
+
+# (B) model logistyczny (binomial z binomial(cbind(success, fail)))
+m1 <- glm(cbind(ha, ok) ~ ck, data = df6, family = binomial)
+cat('\nModel liniowej regresji logistycznej (m1):\n')
+print(summary(m1))
+
+# (D) model kwadratowy
+m2 <- glm(cbind(ha, ok) ~ ck + I(ck^2), data = df6, family = binomial)
+cat('\nModel kwadratowy (m2):\n')
+print(summary(m2))
+
+# (F) który lepszy: porównanie AIC i deviance
+cat('\nAICs (m1, m2):\n')
+print(c(AIC(m1), AIC(m2)))
+cat('\nDeviance (m1, m2):\n')
+print(c(deviance(m1), deviance(m2)))
+
+# (G) rysunek z dopasowanymi krzywymi
+newck <- data.frame(ck = seq(min(df6$ck), max(df6$ck), length.out = 200))
+newck$pred1 <- predict(m1, newck, type = 'response')
+newck$pred2 <- predict(m2, newck, type = 'response')
+ggplot(df6, aes(x = ck, y = prob)) +
+	geom_point() +
+	geom_line(data = newck, aes(x = ck, y = pred1, colour = 'linear')) +
+	geom_line(data = newck, aes(x = ck, y = pred2, colour = 'quadratic')) +
+	ylim(0,1) + ggtitle('Dopasowanie modeli logistycznych')
+```

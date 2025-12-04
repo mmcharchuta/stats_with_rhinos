@@ -4,10 +4,6 @@ author: "Charchuta — Mikołaj"
 output: html_document
 ---
 
-## Wprowadzenie
-
-W tym dokumencie znajdują się rozwiązania zadań z korelacji i regresji (R3). Dla każdego zadania zamieszczam: dane, obliczenia współczynnika korelacji (gdzie dotyczy), test statystyczny, wykresy pomocnicze oraz estymację regresji liniowej (jeśli wymagana). Domyślnie używam testu Pearsona dla korelacji i testu t / lm dla regresji; gdzie istnieją przesłanki do użycia metod nieparametrycznych (np. małe n lub brak normalności), podaję alternatywy.
-
 ---
 
 ## Zadanie 1 — korelacja mąka (M) vs cukier (C)
@@ -57,7 +53,7 @@ Tabela:
 ```{r zad3, echo=TRUE}
 # Macierz: wiersze = Parch (C, P), kolumny = Owocówka (U, N)
 tab3 <- matrix(c(29,194,17,68), nrow = 2, byrow = TRUE)
-rownames(tab3) <- c("Czyste","Płatki")
+rownames(tab3) <- c("Czyste","Plamki")
 colnames(tab3) <- c("U","N")
 tab3
 
@@ -95,13 +91,24 @@ Interpretacja: jeśli p < 0.05 (albo inna ustalona alfa), odrzucamy niezależno�
 
 ## Zadanie 5 — oceny dwóch kaw
 
-Uwaga: zadanie mówi, że 60 konsumentów oceniało obie kawy. Aby przetestować zależność ocen potrzebujemy parowanych (wspólnych) danych (ocena kawy A i ocena kawy B dla tego samego konsumenta). W treści podano jedynie rozkłady punktów dla każdej kawy, a nie rozkłady skojarzone (brak tablicy 60 par). Zatem z samych marginesów nie można obliczyć korelacji czy testu zależności par.
 
-Propozycje:
-- Jeśli masz surowe dane (wektor ocen A i B po 60 obserwacjach), użyj testu korelacji rang Spearmana lub tau Kendalla: cor.test(A, B, method = "spearman").
-- Jeśli masz pełną macierz kontyngencji (ocena A vs ocena B), możesz wykonać test chi-kwadrat niezależności lub test zgodności.
+```{r zad5, echo=TRUE}
+# Dane
+ratings <- c(3,4,5,6,7)
+szatanex <- c(4,14,17,19,6)
+lurekcja  <- c(6,16,21,13,4)
 
-Podaj proszę surowe pary ocen lub macierz 5x5 ocen, a wstawię analizę.
+# 2x5 tablica: wiersze = kawa, kolumny = ocena
+tab5 <- rbind(Szatanex = szatanex, Lurekcja = lurekcja)
+colnames(tab5) <- as.character(ratings)
+tab5
+
+# Test chi-kwadrat (H0: rozkład ocen niezależny od typu kawy)
+chisq.test(tab5, correct = FALSE)
+
+# Alternatywnie z symulacją dokładnego p-value (przydatne gdy oczekiwane są małe)
+chisq.test(tab5, simulate.p.value = TRUE, B = 10000)
+```
 
 ---
 
@@ -199,33 +206,3 @@ coef(mod11)
 
 # Porównać z podanym wzorem: Plon = -51.0 + 0.47*Dlugosc + 1.30*Zawartosc - 0.35*Suma
 ```
-
----
-
-## Notatka końcowa
-
-Jeżeli chcesz, uruchomię te bloki w Twoim środowisku R i wkleję wyniki testów oraz wykresy (mogę też dodać interpretacje numeryczne przy każdym zadaniu). Napisz czy mam uruchomić i wkleić wyniki tutaj, czy wystarczy, że zostawię Rmd gotowy do uruchomienia w RStudio.
----
-title: "Regresja"
-author: "Charchuta — Mikołaj"
-output: html_document
----
-
-## Wprowadzenie
-
-
----
-
-## Zadanie 1 — 
-Opis: 
-
-```{r zad1}
-# Dane
-
-```
-
-Krótka interpretacja: 
-
----
-## Zadanie 2 — 
-```{r zad2}	

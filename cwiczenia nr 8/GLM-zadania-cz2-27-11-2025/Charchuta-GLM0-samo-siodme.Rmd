@@ -1,0 +1,83 @@
+---
+title: "Analiza GLM — metals.xlsx"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r libraries}
+library(readxl); library(dplyr); library(ggplot2)
+library(MASS) # for glm.nb if needed
+
+df <- read_excel('metals.xlsx')
+print(names(df))
+print(dim(df))
+print(head(df))
+
+# Ensure predictors are factors if character
+if('extractants' %in% names(df) && is.character(df$extractants)) df$extractants <- as.factor(df$extractants)
+if('metals' %in% names(df) && is.character(df$metals)) df$metals <- as.factor(df$metals)
+
+# Correlation between C1..C4
+vars <- intersect(c('C1','C2','C3','C4'), names(df))
+if(length(vars) >= 2) {
+	cm <- cor(df[vars], use = 'pairwise.complete.obs')
+	print(cm)
+	pairs(df[vars], main = 'Pairs: C1..C4')
+}
+
+# Function to fit models for a response
+fit_models <- function(resp_name) {
+	resp <- df[[resp_name]]
+	form <- as.formula(paste(resp_name, '~ extractants + metals'))
+
+	lm_m <- lm(form, data = df)
+
+	# logistic: create binary if not already 0/1
+	if(all(resp %in% c(0,1), na.rm = TRUE)) {
+		bin_resp <- resp
+	} else {
+		bin_resp <- as.integer(resp > median(resp, na.rm = TRUE))
+	}
+	df$.bin <- bin_resp
+	log_m <- glm(.bin ~ extractants + metals, data = df, family = binomial)
+
+	# Poisson: check if response integer-ish
+	if(all(floor(resp) == resp, na.rm = TRUE)) {
+		pois_m <- glm(form, data = df, family = poisson)
+	} else {
+		pois_m <- NULL
+	}
+
+	# Poisson dispersion
+	dispersion <- if(!is.null(pois_m)) sum(residuals(pois_m, type='pearson')^2)/df.residual(pois_m) else NA
+
+	list(response = resp_name, lm = lm_m, logit = log_m, poisson = pois_m, dispersion = dispersion)
+}
+
+results <- list()
+for(v in vars) results[[v]] <- fit_models(v)
+
+# Summarize AICs
+aic_tbl <- data.frame(response = character(), model = character(), AIC = numeric(), stringsAsFactors = FALSE)
+for(v in names(results)){
+	res <- results[[v]]
+	aic_tbl <- rbind(aic_tbl, data.frame(response = v, model = 'lm', AIC = AIC(res$lm)))
+	aic_tbl <- rbind(aic_tbl, data.frame(response = v, model = 'logit(binary)', AIC = AIC(res$logit)))
+	if(!is.null(res$poisson)) aic_tbl <- rbind(aic_tbl, data.frame(response = v, model = 'poisson', AIC = AIC(res$poisson)))
+}
+print(aic_tbl)
+
+
+for(v in names(results)){
+	res <- results[[v]]
+	if(!is.na(res$dispersion) && res$dispersion > 1.5) {
+		cat('\nResponse', v, 'has dispersion', round(res$dispersion,2), '- fitting negative binomial\n')
+		nb <- glm.nb(as.formula(paste(v, '~ extractants + metals')), data = df)
+		cat('AIC Poisson vs NegBin:', AIC(res$poisson), AIC(nb), '\n')
+	}
+}
+```
+
+

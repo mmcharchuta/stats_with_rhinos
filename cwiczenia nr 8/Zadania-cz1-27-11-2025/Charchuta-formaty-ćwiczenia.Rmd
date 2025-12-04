@@ -1,0 +1,79 @@
+---
+title: "Formaty danych — ćwiczenia (wide → long)"
+author: "Charchuta Mikołaj"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Opis
+
+## Pakiety i wczytanie danych
+
+```{r packages}
+# install.packages(c("readxl","dplyr","tidyr")) # odkomentuj jeśli potrzebne
+library(readxl)
+library(dplyr)
+library(tidyr)
+
+# Ścieżka do pliku Excel — dostosuj jeśli trzeba
+xlsx_file <- "./rye-new.xlsx"
+
+# Wczytanie arkuszy
+rye_wide <- read_excel(xlsx_file, sheet = "data1")
+pacjent_wide <- read_excel(xlsx_file, sheet = "pacjent")
+
+# Pokaż wczytane tabele (pierwsze wiersze)
+cat("--- rye_wide (head) ---\n")
+print(head(rye_wide))
+cat("\n--- pacjent_wide (head) ---\n")
+print(head(pacjent_wide))
+```
+
+## Zadanie 1 — przekształcenie `rye_wide`
+
+```{r rye-transform}
+# long format 1: variable/value
+rye_long1 <- rye_wide %>%
+	pivot_longer(cols = -numer, names_to = "variable", values_to = "value")
+
+# Sort by variable (might be unncecessary)
+rye_long1 <- rye_long1 %>%
+  arrange(variable)
+
+# long format 2: rename columns
+rye_long2 <- rye_long1 %>%
+	rename(gatunki = variable, plon = value)
+
+# Sort by variable (might be unncecessary)
+rye_long2 <- rye_long2 %>%
+  arrange(gatunki)
+
+cat("--- rye_long1 (head) ---\n")
+print(head(rye_long1))
+cat("\n--- rye_long2 (head) ---\n")
+print(head(rye_long2))
+```
+
+## Zadanie 2 — przekształcenie `pacjent_wide`
+
+```{r pacjent-transform}
+# pivot wszystkich kolumn pomiarowych do formatu long
+pacjent_long1 <- pacjent_wide %>%
+	pivot_longer(cols = -c(pacjent, plec), names_to = "variable", values_to = "value")
+
+# wersja z polskimi nazwami kolumn
+pacjent_long2 <- pacjent_long1 %>%
+	rename(warunek = variable, pomiar = value)
+
+cat("--- pacjent_long1 (head) ---\n")
+print(head(pacjent_long1))
+cat("\n--- pacjent_long2 (head) ---\n")
+print(head(pacjent_long2))
+```
+
+
+
